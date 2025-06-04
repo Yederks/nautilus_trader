@@ -155,9 +155,14 @@ def _build_rust_libs() -> None:
 
         print(" ".join(cmd_args))
 
+        # Ensure HIGH_PRECISION environment variable is passed to Rust build process
+        env = os.environ.copy()
+        env["HIGH_PRECISION"] = str(HIGH_PRECISION).lower()
+
         subprocess.run(
             cmd_args,
             check=True,
+            env=env,
         )
     except subprocess.CalledProcessError as e:
         raise RuntimeError(

@@ -58,12 +58,22 @@ fn main() {
         let mut config_cython = cbindgen::Config::from_file("cbindgen_cython.toml")
             .expect("unable to find cbindgen_cython.toml configuration file");
 
-        #[cfg(feature = "high-precision")]
-        let flag = Some("\nDEF HIGH_PRECISION = True  # or False".to_string());
-        #[cfg(not(feature = "high-precision"))]
-        let flag = Some("\nDEF HIGH_PRECISION = False  # or True".to_string());
+        // Determine HIGH_PRECISION setting from environment variable (passed by build.py)
+        // Fall back to feature flag detection if environment variable is not set
+        let high_precision = env::var("HIGH_PRECISION")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or_else(|_| {
+                // Fallback to feature flag detection
+                cfg!(feature = "high-precision")
+            });
 
-        // Activate Cython high-precision flag based on feature flags passed to Rust build
+        let flag = if high_precision {
+            Some("\nDEF HIGH_PRECISION = True  # or False".to_string())
+        } else {
+            Some("\nDEF HIGH_PRECISION = False  # or True".to_string())
+        };
+
+        // Activate Cython high-precision flag based on environment variable or feature flags
         config_cython.after_includes = flag;
 
         let cython_path = crate_dir.join("../../nautilus_trader/core/rust/model.pxd");
@@ -80,8 +90,9 @@ fn main() {
         // Run the replace operation in memory
         let mut data = data.replace("cdef enum", "cpdef enum");
 
-        #[cfg(feature = "high-precision")]
-        {
+        // Only add 128-bit typedefs if HIGH_PRECISION is actually enabled
+        // This prevents MSVC compilation errors on Windows when HIGH_PRECISION=false
+        if high_precision {
             let lines: Vec<&str> = data.lines().collect();
 
             let mut output = String::new();
